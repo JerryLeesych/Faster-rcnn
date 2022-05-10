@@ -2,6 +2,84 @@ import math
 
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
+import utils
+
+
+class FasterRCNN(nn.Moudle):
+    def __init__(self, num_classes,
+                    mode = "training",
+                    feat_stride = 16,
+                    anchor_scales = [8, 16, 32],
+                    ratios = [0.5, 1, 2],
+                    backbone = 'resnet50',
+                    pretained = False):
+
+        super(FasterRCNN, self).__init__()
+        self.feat_stride = feat_stride
+
+        self.feature_extractor, classifier = resnet50(pretrained)
+
+        self.rpn = RegionProposalNetwork( 1024, 512,
+                                          ratios = ratios,
+                                          anchor_scales = anchor_scales,
+                                          feat_stride = self.feat_stride,
+                                          mode = mode)
+
+        self.head = Resnet50RoIHead( n_class = num_class + 1,
+                                      roi_size = 14,
+                                      spatial_scale = 1,
+                                      classifier = classifier
+                                      )
+    def forward(self, x, scale = 1, mode = "forward"):
+        if mode == "forward":
+
+          img_size = x.shape[2:]
+
+          # extract features from the backbone
+          base_feature = self.feature_extractor.forward(x)
+
+          # Get proposed regions
+          _, _, rois, roi_indices, _ = self.rpn.forward(base_feature, img_size, scale)
+
+          # do classification on proposed regions
+          roi_cls_locs, roi_scores = self.head.forward(base_feature, rois, roi_indices, img_size)
+
+          return roi_cls_locs, roi_scores, rois, roi_indices
+
+        elif mode == "extractor":
+            base_featue = self.extractor.forward(x)
+
+            return base_feature
+
+        elif mode == "rpn":
+            base_feature, img_size = x
+
+            rpn_locs, ron_socres, rois, roi_indices, anchor = self.rpn.forward(base_feature, img_size, scale)
+
+            return rpn_locs, rpn_scores, rois, roi_indices, anchor
+
+        elif mode == "predict_head":
+            base_feature, rois, roi_indices, img_size = x
+
+            roi_cls_locs, roi_scores = self.head.forward(base_feature, rois, roi_indices, img_size)
+
+            return roi_cls_locs, roi_scores
+
+        def freeze_bn(self):
+            for m in self,modules():
+                if  isinstance(m, nn.BatchNorm2d):
+                    m.eval()
+
+
+
+
+
+
+
+
+
+
+
 
 class Bottleneck(nn.Module):
     expansion = 4

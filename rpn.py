@@ -86,22 +86,77 @@ class RegionProposalNetwork(nn.Module):
 
     ):
 
-    super().__init__()
+        super().__init__()
 
-    # generate all possible achors according to scales and ratios
-    self.anchor_base = generate_anchor_base(anchor_scales = anchor_scales, ratios = ratios)
-    num_anchors = self.anchor_base.shape[0]
+        # generate all possible achors according to scales and ratios
+        self.anchor_base = generate_anchor_base(anchor_scales = anchor_scales, ratios = ratios)
+        num_anchors = self.anchor_base.shape[0]
 
-    # Do a conv first to collect features
-    self.conv1 = nn.Conv2d(in_channels, mid_channels, 3, 1, 1)
+        # Do a conv first to collect features
+        self.conv1 = nn.Conv2d(in_channels, mid_channels, 3, 1, 1)
 
-    # This conv is to predic if there is an object
-    self.objectness = nn.Conv2d(mid_channels, num_anchors*2, 1, 1, 0)
+        # This conv is to predic if there is an object
+        self.objectness = nn.Conv2d(mid_channels, num_anchors*2, 1, 1, 0)
 
-    # offset to the bbox (based on achor)
-    self.loc = nn.Conv2d(mid_channels, num_anchors*4, 1, 1, 0)
+        # offset to the bbox (based on achor)
+        self.loc = nn.Conv2d(mid_channels, num_anchors*4, 1, 1, 0)
 
-    # stride btw feature points
-    self.feat_stride = feat_stride
+        # stride btw feature points
+        self.feat_stride = feat_stride
 
-    self.proposal_layer = ProposalCreator(mode)
+        self.proposal_layer = ProposalCreator(mode)
+
+        # Initialize the rpn
+        normal_init(self.conv1, 0, 0.01)
+        normal_init(self.score, 0, 0.01)
+        normal_init(self.loc, 0, 0.01)
+
+    def forward(self, x, img_szie, scale = 1.):
+
+        n, _, h, w = x.shape
+
+        # First do a conv to collect features
+        x = F.relu(self.conv1(x))
+
+        rpn_locs = self.loc(x)
+        rpn_locs = rpn_locs.permute(0, 2, 3, 1).contiguous().view(n, -1, 4)
+
+        # Predic the offset of the locs
+        rpn_locs = self.loc(x)
+        rpn_locs = rpn_locs.permute(0, 2, 3, 1).contiguous().view(n, -1, 4)
+
+        # predict the objectness
+        rpn_objectness = self.objectness(x)
+        rpn_objectness = rpn_locs.permute(0, 2, 3, 1).contiguous().view(n, -1, 2)
+
+        rpn_softmax_scores = F.softmax(rpn_objectness, dim = -1)
+        rpn_objectness_prob = rpn_softmax_scores[:, :, 1].contiguous()
+        rpn_objectness_prob = rpn_objectness_prob.view(n, -1)
+
+        # generate anchors based on anchor base and image size & feat_stride
+        anchor = _enumerate_shifted_anchor(np.array(self.anchor_base), self.feat_stride, h, w)
+
+        rois = list()
+        roi_indices = list()
+
+        for i in range(n):
+            roi = self.proposal_layer(rpn_locs[i], rpn_objectness[i], anchor, img_size, scale = scale)
+            batch_index = i * torch.ones((len(roi)))
+            rois.append(roi)
+            roi_indices.append(batch_index)
+
+        rois = torch.cat(rois, dim = 0)
+        roi_indices.append(batch_index)
+
+        return rpn_locs, rpn_objectness, rois, roi_indices, anchor
+
+
+
+
+
+
+
+
+def normal_init(w, mean, stddev):
+    w.weight.data.normal_(mean, stddev)
+    w.bias,data.zero_()

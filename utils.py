@@ -32,3 +32,31 @@ def loc2bbox(anchor, loc):
     dst_bbox[:, 3::4] = center_y + 0.5 * w
 
     return dst_bbox
+
+def _enumerate_shifted_anchor(anchor_base, feat_stride, height, width):
+
+    # each x, y pair is a center of a grid
+    grid_x = np.arrange(0, width * feat_stride, feat_stride)
+    grid_y = np.arrange(0, height * feat_stride, feat_stride)
+    grid_x, grid_y = np.meshgrid(shift_x, shift_y)
+    # ravel: flattern the matrix
+    grid_xy = np.stack(grid_x.ravel(), grid_y.ravel(), grid_x.ravel(), shift_y.ravel())
+
+    A = anchor_base.shape[0]
+    K = grid_xy.shape[0]
+    anchor = anchor_base.reshape((1, A, 4)) + shift.reshape((K, 1, 4))
+
+    anchor = anchor.reshape((K * A, 4)).astype(np.float32)
+    return anchor
+
+
+
+def normal_init(w, mean, stddev):
+    w.weight.data.normal_(mean, stddev)
+    w.bias,data.zero_()
+
+def get_classes(classe_path):
+    with open(classes_path, encoding = 'utf-8') as f:
+        class_names = f.readlines()
+    class_names = [c.strip() for c in class_names]
+    return class_names, len(class_names)
