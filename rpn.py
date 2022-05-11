@@ -29,7 +29,7 @@ class ProposalCreator()：
 
         self.min_bbox_size = min_bbox_size
 
-    def __cal__(self, loc, objectness, anchor, img_size, scale = 1.):
+    def __call__(self, loc, objectness, anchor, img_size, scale = 1.):
         if self.mode = "training":
             n_pre_nms = self.n_train_pre_nms
             n_post_nms = self.n_train_post_nms
@@ -70,8 +70,6 @@ class ProposalCreator()：
         roi = roi[bbox_to_keep]
 
         return roi
-
-
 
 
 class RegionProposalNetwork(nn.Module):
@@ -149,12 +147,6 @@ class RegionProposalNetwork(nn.Module):
         roi_indices.append(batch_index)
 
         return rpn_locs, rpn_objectness, rois, roi_indices, anchor
-
-
-
-
-
-
 
 
 def normal_init(w, mean, stddev):

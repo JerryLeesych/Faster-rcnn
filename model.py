@@ -3,6 +3,8 @@ import math
 import torch.nn as nn
 from torchvision.models.utils import load_state_dict_from_url
 import utils
+import rpn
+from classifier import Resnet50RoIHead, VGG16RoIHead
 
 
 class FasterRCNN(nn.Moudle):
@@ -63,22 +65,12 @@ class FasterRCNN(nn.Moudle):
 
             roi_cls_locs, roi_scores = self.head.forward(base_feature, rois, roi_indices, img_size)
 
-            return roi_cls_locs, roi_scores
+            return roi_cls_locs, roi_scores, rois, roi_indices
 
         def freeze_bn(self):
             for m in self,modules():
                 if  isinstance(m, nn.BatchNorm2d):
                     m.eval()
-
-
-
-
-
-
-
-
-
-
 
 
 class Bottleneck(nn.Module):
